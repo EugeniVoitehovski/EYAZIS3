@@ -1,6 +1,13 @@
 import re
-
+import nltk.data
+import math
 import pymorphy2
+import collections
+import string
+import operator
+
+from nltk import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
 
 from printDocumets import printExpectation
 from readFromFile import readFromFile
@@ -8,11 +15,64 @@ from saveInFile import SaveFile
 
 
 def classicDocument():
-    result = 'В разработке!'
-    print(result)
-    readFromFile()
-    SaveFile(result, type)
+    #result = 'В разработке!'
+    #print(result)
+    text = readFromFile()
+    sentences_original = sent_tokenize(text)
+    s = text.strip('\t\n')
+    words_chopped = word_tokenize(s.lower())
+    sentences_chopped = sent_tokenize(s.lower())
+    stop_words = set(stopwords.words("english"))
+    punc = set(string.punctuation)
+    filtered_words = []
+    for w in words_chopped:
+        if w not in stop_words and w not in punc:
+            filtered_words.append(w)
+    total_words = len(filtered_words)
+    # Определение частоты каждого отфильтрованного слова
+    word_frequency = {}
+    output_sentence = []
+    for w in filtered_words:
+        if w in word_frequency.keys():
+            word_frequency[w] += 1.0
+        else:
+            word_frequency[w] = 1.0
+    # Присвоение весов каждому слову в соответствии с частотой и общим количеством слов
+    for word in word_frequency:
+        word_frequency[word] = (word_frequency[word] / total_words)
+    tracker = [0.0] * len(sentences_original)
+    for i in range(0, len(sentences_original)):
+        for j in word_frequency:
+            if j in sentences_original[i]:
+                tracker[i] += word_frequency[j]
+
+    # Получение предложений с наибольшим весом
+    for i in range(0, len(tracker)):
+        # Извлечение индекса с наибольшей взвешенной частотой из трекера
+        index, value = max(enumerate(tracker), key=operator.itemgetter(1))
+        if (len(output_sentence) + 1 <= 10) and (sentences_original[index] not in output_sentence):
+            output_sentence.append(sentences_original[index])
+        tracker.remove(tracker[index])
+
+    sorted_output_sent = sort_sentences(sentences_original, output_sentence)
+    for output in sorted_output_sent:
+        result = output
+        print(result)
+    SaveFile(result, 2)
     printExpectation()
+
+ #Сортировка в том порядке, как было в исходном тексте
+def sort_sentences(original, output):
+    sorted_sent_arr = []
+    sorted_output = []
+    for i in range(0, len(output)):
+        if output[i] in original:
+            sorted_sent_arr.append(original.index(output[i]))
+    sorted_sent_arr = sorted(sorted_sent_arr)
+
+    for i in range(0, len(sorted_sent_arr)):
+        sorted_output.append(original[sorted_sent_arr[i]])
+    return sorted_output
 
 
 def listDocument():
@@ -71,8 +131,10 @@ def listDocument():
     # выводим в консоль то, что получилось
     for key, value in dict.items():
         if len(value) > 0:
-            print(key + ' -> ' + str(value))
-
+            result = key + ' -> ' + str(value)
+            print(result)
+    SaveFile(result, 1)
+    printExpectation()
 
 def count_lexemes(words):
     counter = {}
@@ -83,24 +145,3 @@ def count_lexemes(words):
             lexeme = morph.parse(temp)[0].normal_form
             counter[lexeme] = counter.get(lexeme, 0) + 1
     return counter
-
-
-def extract_word_Pair(dict, words, counter, word, lexeme):
-    try:
-        next_word = None
-        wrong_word_type_counter = 0
-
-        while True:
-            wrong_word_type_counter = wrong_word_type_counter + 1
-            next_word = words[counter + wrong_word_type_counter]
-            next_word = re.sub('(\W|[0-9])', '', next_word)
-            if len(next_word) > 2:
-                break
-
-        if next_word is not word:
-            dict[lexeme].append(word + ' ' + next_word)
-        counter = counter + 1
-
-    except IndexError:
-        # text end
-        pass
